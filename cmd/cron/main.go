@@ -131,7 +131,10 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 					panic(err)
 				}
 
-				sendToAzureMonitor(c, string(customDataBytes))
+				err = sendToAzureMonitor(c, string(customDataBytes))
+				if err != nil {
+					log.Print(err)
+				}
 			}(metricName)
 		}
 		wg.Wait()
@@ -139,8 +142,9 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 
 }
 
-func sendToAzureMonitor(c *cfg.Cfg, postData string) {
+func sendToAzureMonitor(c *cfg.Cfg, postData string) error {
 	var cli = azuremonitor.New(c.AzureADTenantID, c.AzureADClientID, c.AzureADClientSecret)
 	fmt.Println(fmt.Sprintf("region: %s \n resourceID: %s \n postData: %s", c.AzureMonitorRegion, c.AzureResourceID, postData))
-	cli.SaveCustomAzureData(c.AzureMonitorRegion, c.AzureResourceID, postData)
+	_, err := cli.SaveCustomAzureData(c.AzureMonitorRegion, c.AzureResourceID, postData)
+	return err
 }

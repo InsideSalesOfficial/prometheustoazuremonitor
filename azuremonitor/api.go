@@ -31,8 +31,7 @@ func New(tenantID, clientID, clientSecret string) api {
 }
 
 //GetAccessToken Generates a token to access the resource
-func (api api) GetAccessToken() Token {
-
+func (api api) GetAccessToken() (Token, error) {
 	if api.token == nil || api.token.IsExpired() {
 		body := url.Values{}
 		body.Set("grant_type", "client_credentials")
@@ -41,10 +40,18 @@ func (api api) GetAccessToken() Token {
 		body.Add("client_secret", api.clientSecret)
 
 		client := &http.Client{}
-		r, _ := http.NewRequest("POST", api.url, strings.NewReader(body.Encode())) // URL-encoded payload
+		r, err := http.NewRequest("POST", api.url, strings.NewReader(body.Encode())) // URL-encoded payload
+		if err != nil {
+			return Token{}, err
+		}
 		r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-		resp, _ := client.Do(r)
+		resp, err := client.Do(r)
+		if err != nil {
+			return Token{}, err
+		}
+
+		defer resp.Body.Close()
 
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -55,20 +62,20 @@ func (api api) GetAccessToken() Token {
 		if errToken != nil {
 			panic(err)
 		}
-		// fmt.Print(t)
-		// bodyString := string(bodyBytes)
 		api.token = &t
-		return *api.token
+		return *api.token, nil
 	}
-	return *api.token
-
+	return *api.token, nil
 }
 
 // SaveCustomAzureData Save data to the Azure Monitor Custom API
-func (api api) SaveCustomAzureData(region, resourceID, postData string) int {
+func (api api) SaveCustomAzureData(region, resourceID, postData string) (int, error) {
 
-	var urlStr = fmt.Sprintf("https://%s.monitoring.azure.com%s/metrics", region, resourceID)
-	var accessToken = api.GetAccessToken()
+	urlStr := fmt.Sprintf("https://%s.monitoring.azure.com%s/metrics", region, resourceID)
+	accessToken, err := api.GetAccessToken()
+	if err != nil {
+		return 0, err
+	}
 
 	client := &http.Client{}
 	r, _ := http.NewRequest("POST", urlStr, strings.NewReader(postData)) // URL-encoded payload
@@ -78,12 +85,12 @@ func (api api) SaveCustomAzureData(region, resourceID, postData string) int {
 	resp, err := client.Do(r)
 
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
 	fmt.Println(fmt.Sprintf("URL: %s \n AccessToken: %s, StatusCode: %d \n ResponseBody: %s", urlStr, accessToken.AccessToken, resp.StatusCode, string(bodyBytes)))
 
-	return resp.StatusCode
+	return resp.StatusCode, nil
 }
