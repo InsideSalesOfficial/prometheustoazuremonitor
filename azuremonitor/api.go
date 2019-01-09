@@ -3,6 +3,7 @@ package azuremonitor
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,12 +70,12 @@ func (api api) GetAccessToken() (Token, error) {
 }
 
 // SaveCustomAzureData Save data to the Azure Monitor Custom API
-func (api api) SaveCustomAzureData(region, resourceID, postData string) (int, error) {
+func (api api) SaveCustomAzureData(region, resourceID, postData string) error {
 
 	urlStr := fmt.Sprintf("https://%s.monitoring.azure.com%s/metrics", region, resourceID)
 	accessToken, err := api.GetAccessToken()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	client := &http.Client{}
@@ -83,14 +84,18 @@ func (api api) SaveCustomAzureData(region, resourceID, postData string) (int, er
 	r.Header.Add("Authorization", "Bearer "+accessToken.AccessToken)
 
 	resp, err := client.Do(r)
-
 	if err != nil {
-		return 0, err
+		return err
 	}
 
+	if resp.StatusCode > 299 {
+		return fmt.Errorf("Azure Monitor Response Code %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	// TODO: Decode the response and validate we really were successful
+	log.Printf("URL: %s \n AccessToken: %s, StatusCode: %d \n ResponseBody: %s\n", urlStr, accessToken.AccessToken, resp.StatusCode, string(bodyBytes))
 
-	fmt.Println(fmt.Sprintf("URL: %s \n AccessToken: %s, StatusCode: %d \n ResponseBody: %s", urlStr, accessToken.AccessToken, resp.StatusCode, string(bodyBytes)))
-
-	return resp.StatusCode, nil
+	return nil
 }

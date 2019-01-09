@@ -105,6 +105,10 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 						} else {
 							currValue = float64(metricValue.Value) - oldValue
 						}
+						// send zero if the monotically increasing counter decreased or reset during the time period
+						if currValue < 0 {
+							currValue = 0
+						}
 					}
 
 					serie := azuremonitor.Series{DimValues: dimValues, Max: currValue, Min: currValue, Sum: currValue, Count: 1}
@@ -125,10 +129,9 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 				data := azuremonitor.Data{BaseData: baseData}
 				customData := azuremonitor.AzureMonitor{Timestamp: timestamp, Data: data}
 				customDataBytes, err := customData.Marshal()
-
 				if err != nil {
-					fmt.Println(err)
-					panic(err)
+					log.Print(err)
+					return
 				}
 
 				err = sendToAzureMonitor(c, string(customDataBytes))
@@ -145,6 +148,9 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 func sendToAzureMonitor(c *cfg.Cfg, postData string) error {
 	var cli = azuremonitor.New(c.AzureADTenantID, c.AzureADClientID, c.AzureADClientSecret)
 	fmt.Println(fmt.Sprintf("region: %s \n resourceID: %s \n postData: %s", c.AzureMonitorRegion, c.AzureResourceID, postData))
-	_, err := cli.SaveCustomAzureData(c.AzureMonitorRegion, c.AzureResourceID, postData)
+	err := cli.SaveCustomAzureData(c.AzureMonitorRegion, c.AzureResourceID, postData)
+	if err != nil {
+		log.Print(err)
+	}
 	return err
 }
