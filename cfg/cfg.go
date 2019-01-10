@@ -1,27 +1,49 @@
 package cfg
 
-import "github.com/kelseyhightower/envconfig"
+import (
+	"encoding/json"
+	"io/ioutil"
 
-// Cfg represents the possible values edgy can be configured with via environment variables.
-/*
-var configurationFile = os.Getenv("METRICS_CONFIG_FILE")
-var clientID = os.Getenv("AZURE_AD_CLIENT_ID")
-var tenantID = os.Getenv("AZURE_AD_TENANT_ID")
-var clientSecret = os.Getenv("AZURE_AD_CLIENT_SECRET")
-var resourceID = os.Getenv("AZURE_RESOURCE_ID")
-var region = os.Getenv("AZURE_MONITOR_REGION")
-*/
+	"github.com/kelseyhightower/envconfig"
+)
+
+// Cfg represents the possible values we can be configured with
+// via environment variables and from a file.
 type Cfg struct {
-	MetricsConfigFile   string `envconfig:"METRICS_CONFIG_FILE" default:"/mymnt/metrics.conf"`
-	AzureADClientID     string `envconfig:"AZURE_AD_CLIENT_ID" required:"true"`
-	AzureADTenantID     string `envconfig:"AZURE_AD_TENANT_ID" required:"true"`
-	AzureADClientSecret string `envconfig:"AZURE_AD_CLIENT_SECRET" required:"true"`
-	AzureResourceID     string `envconfig:"AZURE_RESOURCE_ID" required:"true"`
-	AzureMonitorRegion  string `envconfig:"AZURE_MONITOR_REGION" default:"eastus"`
+	AzureADClientID     string `json:"-" envconfig:"AZURE_AD_CLIENT_ID" required:"true"`
+	AzureADTenantID     string `json:"-" envconfig:"AZURE_AD_TENANT_ID" required:"true"`
+	AzureADClientSecret string `json:"-" envconfig:"AZURE_AD_CLIENT_SECRET" required:"true"`
+	AzureResourceID     string `json:"-" envconfig:"AZURE_RESOURCE_ID" required:"true"`
+	AzureMonitorRegion  string `json:"-" envconfig:"AZURE_MONITOR_REGION" default:"eastus"`
+	// MetricsConfigFile is where we read in Config from
+	MetricsConfigFile string          `json:"-" envconfig:"METRICS_CONFIG_FILE" default:"/mymnt/metrics.conf"`
+	Config            []ConfigElement `json:"config"`
 }
 
 // New returns a new configuration, populated from environment variables and/or defaults.
+// Also pulls in configuration from a configfile.
 func New() (*Cfg, error) {
 	cfg := &Cfg{}
-	return cfg, envconfig.Process("", cfg)
+	err := envconfig.Process("", cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read and decode the metrics configuration JSON
+	data, err := ioutil.ReadFile(cfg.MetricsConfigFile)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// ConfigElement represents each Prometheus-Azure Monitor Namespace set of metrics
+type ConfigElement struct {
+	PromURL               string   `json:"promURL"`
+	AzureMonitorNamespace string   `json:"azureMonitorNamespace"`
+	Metrics               []string `json:"metrics"`
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"sync"
 	"time"
@@ -20,23 +19,15 @@ func main() {
 	// Gather environment configuration and exit if we don't have all we need
 	c, err := cfg.New()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	// Decode the metrics configuration JSON
-	dat, err := ioutil.ReadFile(c.MetricsConfigFile)
-	if err != nil {
-		panic(err)
-	}
-	config, err := UnmarshalConfig(dat)
-
-	pullPrometheus(c, config)
-
+	pullPrometheus(c)
 }
 
-func pullPrometheus(c *cfg.Cfg, config Config) {
+func pullPrometheus(c *cfg.Cfg) {
 
-	for _, promConfig := range config.Config {
+	for _, promConfig := range c.Config {
 		log.Println(promConfig)
 
 		azureMonitorNamespace := promConfig.AzureMonitorNamespace
@@ -63,7 +54,6 @@ func pullPrometheus(c *cfg.Cfg, config Config) {
 		wg.Wait()
 		log.Println("Completed")
 	}
-
 }
 
 // SendMetricToAzureMonitor grabs metricName from Prometheus and sends the delta to Azure Monitor namespace
